@@ -116,7 +116,11 @@
     }
 
     function renderInvoice(inv) {
-      document.getElementById("disp-amount").innerHTML = `$${inv.amountUSD.toFixed(2)} <span class="currency">USDT</span>`;
+      if (inv.network === "litecoin") {
+        document.getElementById("disp-amount").innerHTML = `${inv.expectedAmount} <span class="currency">LTC</span> <span style="font-size: 1rem; color: var(--text-muted); display: block;">(~$${inv.amountUSD.toFixed(2)} USD)</span>`;
+      } else {
+        document.getElementById("disp-amount").innerHTML = `$${inv.amountUSD.toFixed(2)} <span class="currency">USDT</span>`;
+      }
       document.getElementById("net-badge").textContent = `${inv.networkName.toUpperCase()}`;
       document.getElementById("qr-img").src = inv.qrCode;
       document.getElementById("disp-address").textContent = inv.merchantAddress;
@@ -179,9 +183,14 @@
       document.getElementById("payment-view").style.display = "none";
       document.getElementById("paid-view").style.display = "block";
       if (txHash) {
-        const expUrl = invoiceData?.network === "bsc" 
-          ? `https://bscscan.com/tx/${txHash}` 
-          : `https://polygonscan.com/tx/${txHash}`;
+        let expUrl = "";
+        if (invoiceData?.network === "litecoin") {
+          expUrl = `https://litecoinspace.org/tx/${txHash}`;
+        } else if (invoiceData?.network === "bsc") {
+          expUrl = `https://bscscan.com/tx/${txHash}`;
+        } else {
+          expUrl = `https://polygonscan.com/tx/${txHash}`;
+        }
         const link = document.getElementById("explorer-link");
         link.href = expUrl;
         link.textContent = txHash.substring(0, 10) + "..." + txHash.substring(txHash.length - 8) + " ↗";

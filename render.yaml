@@ -8,5 +8,7 @@ services:
     envVars:
       - key: PORT
         value: 10000
+      - key: LTC_WALLET_ADDRESS
+        value: ltc1qdhylsa96p9g8rpurw8ztmaps4kgjtql2c34f4s
       - key: MERCHANT_WALLET_ADDRESS
         sync: false
