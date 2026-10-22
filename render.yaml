@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: crypto-pay-gateway
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: MERCHANT_WALLET_ADDRESS
+        sync: false

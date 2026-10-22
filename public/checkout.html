@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crypto Checkout</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --success: #10b981;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
+    .card { background-color: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 440px; padding: 2rem; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4); text-align: center; }
+    .header { margin-bottom: 1.5rem; }
+    .badge { display: inline-block; background: rgba(99, 102, 241, 0.15); color: var(--accent); padding: 0.35rem 0.85rem; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .amount { font-size: 2.25rem; font-weight: 800; color: #fff; margin: 0.5rem 0; }
+    .currency { font-size: 1.1rem; color: var(--accent); }
+    .qr-container { background: #fff; padding: 1rem; border-radius: 12px; display: inline-block; margin: 1rem 0; }
+    .qr-container img { width: 180px; height: 180px; display: block; }
+    .info-box { background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1rem; text-align: left; margin-bottom: 1rem; font-size: 0.85rem; word-break: break-all; }
+    .info-box .label { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 700; margin-bottom: 0.25rem; }
+    .copy-btn { background: none; border: none; color: var(--accent); cursor: pointer; float: right; font-size: 0.75rem; font-weight: 600; }
+    .copy-btn:hover { text-decoration: underline; }
+    .form-group { margin-top: 1.25rem; text-align: left; }
+    .form-group label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+    input[type="text"] { width: 100%; background: #0f172a; border: 1px solid var(--border); padding: 0.75rem; border-radius: 8px; color: #fff; font-size: 0.85rem; }
+    input[type="text"]:focus { outline: 2px solid var(--accent); border-color: transparent; }
+    .btn { width: 100%; background: var(--accent); color: #fff; border: none; padding: 0.85rem; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; margin-top: 0.75rem; transition: background 0.2s; }
+    .btn:hover { background: var(--accent-hover); }
+    .status-msg { margin-top: 1rem; font-size: 0.9rem; min-height: 1.5rem; }
+    .status-success { color: var(--success); font-weight: 700; }
+    .status-error { color: #ef4444; }
+    .status-loading { color: #f59e0b; }
+    .paid-view { display: none; }
+    .checkmark { font-size: 3.5rem; color: var(--success); margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+
+  <div class="card" id="checkout-card">
+    <!-- Active Payment View -->
+    <div id="payment-view">
+      <div class="header">
+        <span class="badge" id="net-badge">POLYGON NETWORK</span>
+        <div class="amount" id="disp-amount">$0.00 <span class="currency">USDT</span></div>
+        <p style="color: var(--text-muted); font-size: 0.85rem;">Send exact amount to complete your order</p>
+      </div>
+
+      <div class="qr-container">
+        <img id="qr-img" src="" alt="Payment QR Code">
+      </div>
+
+      <div class="info-box">
+        <button class="copy-btn" onclick="copyAddress()">COPY</button>
+        <div class="label">Pay to Address:</div>
+        <div id="disp-address">0x...</div>
+      </div>
+
+      <div class="form-group">
+        <label for="tx-input">Enter Transaction Hash (TxHash):</label>
+        <input type="text" id="tx-input" placeholder="0x..." />
+        <button class="btn" id="verify-btn" onclick="submitVerification()">Verify Payment</button>
+      </div>
+
+      <div class="status-msg" id="status-box"></div>
+    </div>
+
+    <!-- Success View -->
+    <div id="paid-view" class="paid-view">
+      <div class="checkmark">✓</div>
+      <h2>Payment Confirmed!</h2>
+      <p style="color: var(--text-muted); margin: 0.75rem 0 1.5rem;">Your transaction has been confirmed on the blockchain.</p>
+      <div class="info-box" style="text-align: center;">
+        <div class="label">Transaction Hash</div>
+        <a id="explorer-link" href="#" target="_blank" style="color: var(--accent); font-size: 0.8rem; text-decoration: none;">View on Explorer ↗</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const invoiceId = urlParams.get("id");
+    let invoiceData = null;
+    let pollInterval = null;
+
+    async function loadInvoice() {
+      if (!invoiceId) {
+        document.getElementById("status-box").innerHTML = "<span class='status-error'>No Invoice ID provided in URL</span>";
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/invoice/${invoiceId}`);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        invoiceData = data.invoice;
+        renderInvoice(invoiceData);
+
+        if (invoiceData.status === "PAID") {
+          showPaid(invoiceData.txHash);
+        } else {
+          // Poll every 5s in background
+          pollInterval = setInterval(checkStatus, 5000);
+        }
+      } catch (err) {
+        document.getElementById("status-box").innerHTML = `<span class='status-error'>${err.message}</span>`;
+      }
+    }
+
+    function renderInvoice(inv) {
+      document.getElementById("disp-amount").innerHTML = `$${inv.amountUSD.toFixed(2)} <span class="currency">USDT</span>`;
+      document.getElementById("net-badge").textContent = `${inv.networkName.toUpperCase()}`;
+      document.getElementById("qr-img").src = inv.qrCode;
+      document.getElementById("disp-address").textContent = inv.merchantAddress;
+    }
+
+    async function checkStatus() {
+      try {
+        const res = await fetch(`/api/invoice/${invoiceId}`);
+        const data = await res.json();
+        if (data.success && data.invoice.status === "PAID") {
+          clearInterval(pollInterval);
+          showPaid(data.invoice.txHash);
+        }
+      } catch (e) {
+        console.error("Polling error:", e);
+      }
+    }
+
+    async function submitVerification() {
+      const txHash = document.getElementById("tx-input").value.trim();
+      const statusBox = document.getElementById("status-box");
+      const btn = document.getElementById("verify-btn");
+
+      if (!txHash.startsWith("0x") || txHash.length < 32) {
+        statusBox.innerHTML = "<span class='status-error'>Please enter a valid transaction hash (starts with 0x)</span>";
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Checking Blockchain...";
+      statusBox.innerHTML = "<span class='status-loading'>Verifying transaction with RPC node...</span>";
+
+      try {
+        const res = await fetch("/api/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ invoiceId, txHash })
+        });
+        const data = await res.json();
+
+        if (data.success && data.status === "PAID") {
+          clearInterval(pollInterval);
+          showPaid(txHash);
+        } else if (data.status === "CONFIRMING") {
+          statusBox.innerHTML = `<span class='status-loading'>${data.message}. Retrying automatically...</span>`;
+          setTimeout(submitVerification, 4000);
+        } else {
+          statusBox.innerHTML = `<span class='status-error'>${data.error || "Verification failed"}</span>`;
+          btn.disabled = false;
+          btn.textContent = "Verify Payment";
+        }
+      } catch (err) {
+        statusBox.innerHTML = `<span class='status-error'>Network error: ${err.message}</span>`;
+        btn.disabled = false;
+        btn.textContent = "Verify Payment";
+      }
+    }
+
+    function showPaid(txHash) {
+      document.getElementById("payment-view").style.display = "none";
+      document.getElementById("paid-view").style.display = "block";
+      if (txHash) {
+        const expUrl = invoiceData?.network === "bsc" 
+          ? `https://bscscan.com/tx/${txHash}` 
+          : `https://polygonscan.com/tx/${txHash}`;
+        const link = document.getElementById("explorer-link");
+        link.href = expUrl;
+        link.textContent = txHash.substring(0, 10) + "..." + txHash.substring(txHash.length - 8) + " ↗";
+      }
+    }
+
+    function copyAddress() {
+      if (!invoiceData) return;
+      navigator.clipboard.writeText(invoiceData.merchantAddress);
+      alert("Merchant address copied to clipboard!");
+    }
+
+    window.onload = loadInvoice;
+  </script>
+</body>
+</html>

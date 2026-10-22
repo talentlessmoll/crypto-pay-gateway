@@ -1,0 +1,22 @@
+{
+  "name": "crypto-pay-gateway",
+  "version": "1.0.0",
+  "description": "Lightweight, non-custodial, zero-KYC crypto payment processing gateway for web checkouts.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": ["crypto", "payment-gateway", "polygon", "usdt", "no-kyc", "non-custodial"],
+  "author": "talentlessmoll",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.2",
+    "express": "^4.21.0",
+    "qrcode": "^1.5.4",
+    "uuid": "^10.0.0"
+  }
+}
